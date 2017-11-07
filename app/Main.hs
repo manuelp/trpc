@@ -2,16 +2,46 @@
 module Main where
 
 import qualified Data.Map as M
+import Data.Maybe
 import RPC
 import Network.Wai
 import Network.HTTP.Types
 import Network.Wai.Handler.Warp (run)
-  
-getParams :: M.Map String String -> Maybe (String, String)
-getParams m = do
-  x <- M.lookup "x" m
-  y <- M.lookup "y" m
-  return $ (x, y)
+import Data.ByteString.Char8 (unpack)
+
+main :: IO ()
+main = do
+    putStrLn $ "http://localhost:8080/"
+    run 8080 app
+
+-- https://www.stackage.org/haddock/lts-9.12/wai-3.2.1.1/Network-Wai.html#t:Application
+--
+-- type Application
+--    = Request -> (Response -> IO ResponseReceived) -> IO ResponseReceived
+app :: Application
+app request respond = do
+  putStrLn "I've done some IO here"
+  putStrLn . show $ params
+  respond $
+    responseLBS status200 [("Content-Type", "application/json")] "{\"a\":1}"
+  where
+    user = UserID "test"
+    params = getParameters (UserID "test") . queryString $ request
+
+-- https://www.stackage.org/haddock/lts-9.12/http-types-0.9.1/Network-HTTP-Types-URI.html#t:Query
+--
+-- type Query = [QueryItem]
+-- type QueryItem = (ByteString, Maybe ByteString) 
+getParameters :: UserID -> Query -> Parameters
+getParameters u q =
+  let f (x, Just y) = Just (unpack x, unpack y)
+      f _ = Nothing
+      params = concat $ map (maybeToList . f) q
+  in Parameters u $ M.fromList params
+
+--
+-- ----------------------------------------
+--
 
 concatProcedure :: Procedure
 concatProcedure =
@@ -19,15 +49,16 @@ concatProcedure =
     case (getParams m) of
       Just (x, y) -> return $ JsonString (x ++ y)
       otherwise -> fail "Missing parameters!"
+  where
+    getParams m = do
+      x <- M.lookup "x" m
+      y <- M.lookup "y" m
+      return $ (x, y)
 
 register :: ProcedureRegister
 register =
   ProcedureRegister $
   M.fromList [(ProcedureID ["demo", "concat"], concatProcedure)]
-
-dummyInput :: Parameters
-dummyInput =
-  Parameters (UserID "demo") (M.fromList [("x", "Hello, "), ("y", "RPC!")])
 
 -- main :: IO ()
 -- main = do
@@ -36,16 +67,3 @@ dummyInput =
 --     Nothing -> putStrLn "Procedure not found!"
 --   where
 --     res = execute register (ProcedureID ["demo", "concat"]) dummyInput
-
-app :: Application
-app _ respond = do
-    putStrLn "I've done some IO here"
-    respond $ responseLBS
-        status200
-        [("Content-Type", "text/plain")]
-        "Hello, Web!"  
-
-main :: IO ()
-main = do
-    putStrLn $ "http://localhost:8080/"
-    run 8080 app

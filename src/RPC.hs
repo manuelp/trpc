@@ -14,6 +14,7 @@ type Procedure = (Parameters -> IO JsonString)
 data Parameters =
   Parameters UserID
              (M.Map String String)
+  deriving (Show)
 newtype JsonString =
   JsonString String
   deriving (Show)
