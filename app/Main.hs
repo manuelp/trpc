@@ -8,6 +8,7 @@ import Network.Wai
 import Network.HTTP.Types
 import Network.Wai.Handler.Warp (run)
 import Data.ByteString.Char8 (unpack)
+import Data.Aeson (encode)
 
 main :: IO ()
 main = do
@@ -22,8 +23,12 @@ app :: Application
 app request respond = do
   putStrLn "I've done some IO here"
   putStrLn . show $ params
+  res <- concatProcedure params
   respond $
-    responseLBS status200 [("Content-Type", "application/json")] "{\"a\":1}"
+    responseLBS
+      status200
+      [("Content-Type", "application/json")]
+      (encode . show $ res)
   where
     user = UserID "test"
     params = getParameters (UserID "test") . queryString $ request

@@ -17,7 +17,10 @@ data Parameters =
   deriving (Show)
 newtype JsonString =
   JsonString String
-  deriving (Show)
+
+instance Show JsonString where
+  show (JsonString x) = x
+  
 newtype UserID =
   UserID String
   deriving (Show)
