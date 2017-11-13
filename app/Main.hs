@@ -1,14 +1,14 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
+import Lib
 import qualified Data.Map as M
 import Data.Maybe
-import RPC
 import Network.Wai
 import Network.HTTP.Types
 import Network.Wai.Handler.Warp (run)
+import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy.Char8 as LBS
-import Data.Text.Encoding (encodeUtf8)
 
 main :: IO ()
 main = do
@@ -20,23 +20,16 @@ main = do
 -- type Application
 --    = Request -> (Response -> IO ResponseReceived) -> IO ResponseReceived
 app :: Application
-app request respond = do
-  putStrLn . show . queryString $ request
-  putStrLn . show $ path
-  putStrLn . show $ params
-  fromMaybe (return missingProcedure) res >>= respond
-  where
-    path = ProcedureID . map encodeUtf8 . pathInfo $ request
-    params = getParameters (UserID "test") . queryString $ request
-    res :: Maybe (IO Response)
-    res = execute register path params
-
-missingProcedure :: Response
-missingProcedure =
-  responseLBS
-    status404
-    [("Content-Type", "text/plain")]
-    (LBS.pack "Unknown procedure")
+app request respond =
+  let params = getParameters (UserID "test") . queryString $ request
+  in case rawPathInfo request of
+       "/demo/concat" -> concatProcedure params >>= respond
+       otherwise ->
+         respond $
+         responseLBS
+           status404
+           [("Content-Type", "text/plain")]
+           "Procedure not found"
 
 -- https://www.stackage.org/haddock/lts-9.12/http-types-0.9.1/Network-HTTP-Types-URI.html#t:Query
 --
@@ -46,17 +39,9 @@ getParameters :: UserID -> Query -> Parameters
 getParameters u q =
   let f (x, Just y) = Just (x, y)
       f _ = Nothing
+      params :: [(B.ByteString, B.ByteString)]
       params = concat $ map (maybeToList . f) q
   in Parameters u $ M.fromList params
-
---
--- ----------------------------------------
---
-
-register :: ProcedureRegister
-register =
-  ProcedureRegister $
-  M.fromList [(ProcedureID ["demo", "concat"], concatProcedure)]
 
 concatProcedure :: Procedure
 concatProcedure =
