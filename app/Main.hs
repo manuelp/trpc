@@ -7,9 +7,8 @@ import RPC
 import Network.Wai
 import Network.HTTP.Types
 import Network.Wai.Handler.Warp (run)
-import Data.ByteString.Char8 (unpack)
-import qualified Data.Text as T
-import Data.Aeson (encode)
+import qualified Data.ByteString.Lazy.Char8 as LBS
+import Data.Text.Encoding (encodeUtf8)
 
 main :: IO ()
 main = do
@@ -25,22 +24,19 @@ app request respond = do
   putStrLn . show . queryString $ request
   putStrLn . show $ path
   putStrLn . show $ params
-  fn res >>= respond
+  fromMaybe (return missingProcedure) res >>= respond
   where
-    path = ProcedureID . map (T.unpack) . pathInfo $ request
+    path = ProcedureID . map encodeUtf8 . pathInfo $ request
     params = getParameters (UserID "test") . queryString $ request
-    res :: Maybe (IO JsonString)
+    res :: Maybe (IO Response)
     res = execute register path params
 
-buildResponse :: Status -> JsonString -> Response
-buildResponse s j =
-  responseLBS s [("Content-Type", "application/json")] (encode . show $ j)
-
-fn :: Maybe (IO JsonString) -> IO Response
-fn (Just x) = do
-  res <- x
-  return $ buildResponse status200 res
-fn Nothing = return . buildResponse status404 . JsonString $ "Unknown procedure"
+missingProcedure :: Response
+missingProcedure =
+  responseLBS
+    status404
+    [("Content-Type", "text/plain")]
+    (LBS.pack "Unknown procedure")
 
 -- https://www.stackage.org/haddock/lts-9.12/http-types-0.9.1/Network-HTTP-Types-URI.html#t:Query
 --
@@ -48,7 +44,7 @@ fn Nothing = return . buildResponse status404 . JsonString $ "Unknown procedure"
 -- type QueryItem = (ByteString, Maybe ByteString) 
 getParameters :: UserID -> Query -> Parameters
 getParameters u q =
-  let f (x, Just y) = Just (unpack x, unpack y)
+  let f (x, Just y) = Just (x, y)
       f _ = Nothing
       params = concat $ map (maybeToList . f) q
   in Parameters u $ M.fromList params
@@ -66,7 +62,12 @@ concatProcedure :: Procedure
 concatProcedure =
   \(Parameters _ m) ->
     case (getParams m) of
-      Just (x, y) -> return $ JsonString (x ++ y)
+      Just (x, y) ->
+        return $
+        responseLBS
+          status200
+          [("Content-Type", "text/plain")]
+          (LBS.append (LBS.fromStrict x) (LBS.fromStrict y))
       otherwise -> fail "Missing parameters!"
   where
     getParams m = do

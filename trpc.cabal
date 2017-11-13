@@ -19,6 +19,8 @@ library
   ghc-options:         -Wall
   build-depends:       base >= 4.7 && < 5
                      , containers
+                     , bytestring
+                     , wai
   default-language:    Haskell2010
 
 executable trpc-exe
@@ -33,7 +35,6 @@ executable trpc-exe
                      , warp
                      , bytestring
                      , text
-                     , aeson
   default-language:    Haskell2010
 
 test-suite trpc-test
