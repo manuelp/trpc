@@ -53,7 +53,12 @@ concatProcedure =
           status200
           [("Content-Type", "text/plain")]
           (LBS.append (LBS.fromStrict x) (LBS.fromStrict y))
-      otherwise -> fail "Missing parameters!"
+      otherwise ->
+        return $
+        responseLBS
+          status400
+          [("Content-Type", "text/plain")]
+          (LBS.pack "Some parameters are missing!")
   where
     getParams m = do
       x <- M.lookup "x" m
